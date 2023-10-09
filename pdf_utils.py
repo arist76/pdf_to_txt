@@ -3,22 +3,39 @@ from rich.progress import Progress
 import rich
 import os
 import fitz
-from core import page_to_image, crop_footer, crop_header
-import pytesseract
-from typing import Union
+import core
+import numpy as np
+from PIL import Image
+
 
 app = typer.Typer()
 
 @app.command()
+def scan_image(
+    img_file : str, 
+    output_file : str = typer.Option(None , "-o", "--output-file"),
+    is_two_paged : bool = typer.Option(False, "-t", "--two-paged"),
+    split_at : int = typer.Option(None, "--split-at"),
+    header_margin : float = typer.Option(0, "--header-margin"),
+    footer_margin : float = typer.Option(0, "--footer-margin"),
+    invert : bool = True,
+):
+    if output_file == None:
+        output_file = os.path.basename(img_file)[:-4] + ".txt"
+    
+    core.scan_image(img_file, output_file, is_two_paged, split_at, header_margin, footer_margin, invert, True)
+
+@app.command()
 def scan_pdf(
-        pdf_file : str,
-        output_file : str = typer.Option(None , "-o", "--output-file"),
-        is_two_paged : bool = typer.Option(False, "-t", "--two-paged"),
-        split_at : int = typer.Option(None, "--split-at"),
-        begin_page : int = typer.Option(1, "--page-begin"),
-        end_page : int = typer.Option(None, "--page-end"),
-        header_margin : float = typer.Option(0, "--header-margin"),
-        footer_margin : float = typer.Option(0, "--footer-margin")
+    pdf_file : str,
+    output_file : str = typer.Option(None , "-o", "--output-file"),
+    is_two_paged : bool = typer.Option(False, "-t", "--two-paged"),
+    split_at : int = typer.Option(None, "--split-at"),
+    begin_page : int = typer.Option(1, "--page-begin"),
+    end_page : int = typer.Option(None, "--page-end"),
+    header_margin : float = typer.Option(0, "--header-margin"),
+    footer_margin : float = typer.Option(0, "--footer-margin"),
+    invert: bool = typer.Option(True, "--invert")
 ):
     """Converts a pdf file with amharic language contents to text.
 
@@ -39,28 +56,19 @@ def scan_pdf(
         if end_page == None:
             end_page = float("inf")
 
-        with Progress() as progress:
-            with open(output_file, "w") as output_txt_file:
-                pdf_document = fitz.open(pdf_file)
+        core.scan_pdf(
+            pdf_file, 
+            output_file, 
+            is_two_paged, 
+            split_at, 
+            begin_page, 
+            end_page, 
+            header_margin, 
+            footer_margin,
+            invert, 
+            True
+        )
 
-                task1 = progress.add_task(f"[green] Processing {os.path.basename(pdf_file)}\n", total = pdf_document.page_count)
-
-                # real_page_count = 0  # counts pages for two paged images
-
-                for page in pdf_document.pages(begin_page, end_page):
-                    for image in page_to_image(page, is_two_paged, split_at):
-                        image = crop_header(image, header_margin)
-                        image = crop_footer(image, footer_margin)
-
-                        # convert image to text
-                        text = pytesseract.image_to_string(image, lang="amh")
-
-                        output_txt_file.write(text)             
-
-                    # update progress bar
-                    progress.update(task1,advance=1)
-                
-                pdf_document.close()
     except KeyboardInterrupt:
         os.remove(output_file)
         rich.print("[red] Aborted!!!")
